@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/csv"
 	"fmt"
 	"log"
@@ -20,7 +21,7 @@ type SiteInfo struct {
 	DayValid   string // first day key is valid
 	Expires    string // When key expires
 	Cipher     string // cipher suite being used
-	KeySize    int
+	// KeySize    int
 	// ValidCA    bool // does key use valid CA?
 
 }
@@ -84,6 +85,59 @@ func processInfo(site string, resp *http.Response, err error, resultChan chan *S
 			fmt.Printf("Weird site: %s\n TLS info: %#v\n", site, tlsCS)
 			log.Fatal("WTF? There is no tls.ConnectionState, but we're encrypted? ", site)
 		}
+
+		// find certificate used in tls
+		var cert *x509.Certificate
+		if len(tlsCS.PeerCertificates) > 0 {
+			cert = tlsCS.PeerCertificates[0]
+			// fmt.Printf("Have certificate for %s\n", cert.Subject.CommonName)
+		} else {
+			log.Fatal("x509 certificate couldn't be found :(")
+		}
+
+		// which cipher suite is used?
+		switch tlsCS.CipherSuite {
+		case tls.TLS_RSA_WITH_RC4_128_SHA:
+			r.Cipher = "TLS_RSA_WITH_RC4_128_SHA"
+		case tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA:
+			r.Cipher = "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
+		case tls.TLS_RSA_WITH_AES_128_CBC_SHA:
+			r.Cipher = "TLS_RSA_WITH_AES_128_CBC_SHA"
+		case tls.TLS_RSA_WITH_AES_256_CBC_SHA:
+			r.Cipher = "TLS_RSA_WITH_AES_256_CBC_SHA"
+		case tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA:
+			r.Cipher = "TLS_ECDHE_ECDSA_WITH_RC4_128_SHA"
+		case tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
+			r.Cipher = "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA"
+		case tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
+			r.Cipher = "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA"
+		case tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA:
+			r.Cipher = "TLS_ECDHE_RSA_WITH_RC4_128_SHA"
+		case tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA:
+			r.Cipher = "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA"
+		case tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA:
+			r.Cipher = "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
+		case tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:
+			r.Cipher = "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
+		case tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:
+			r.Cipher = "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+		case tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:
+			r.Cipher = "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+		// case tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:
+		// 	r.Cipher = "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+		// case tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:
+		// 	r.Cipher = "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+		case tls.TLS_FALLBACK_SCSV:
+			r.Cipher = "TLS_FALLBACK"
+		default:
+			log.Fatal("Unknown TLS cipher")
+		}
+
+		// when was the key first valid?
+		r.DayValid = cert.NotBefore.String()
+		r.Expires = cert.NotAfter.String()
+
+		// when does the key expire?
 		resultChan <- r
 	}
 }
@@ -125,7 +179,7 @@ func requestDispatch(siteChan chan string, resultChan chan *SiteInfo, counter *i
 
 func saveResults(results chan *SiteInfo) {
 
-	csvFile, err := os.Create("results.txt")
+	csvFile, err := os.Create("results.csv")
 	if err != nil {
 		log.Fatal("Results file already exists. Exiting...")
 	}
@@ -139,8 +193,8 @@ func saveResults(results chan *SiteInfo) {
 		"Day Valid",
 		"Expires",
 		"Cipher",
-		"Key Size",
-		"Valid CA",
+		// "Key Size",
+		// "Valid CA",
 	}
 
 	err = w.Write(firstLine)
@@ -160,7 +214,7 @@ func saveResults(results chan *SiteInfo) {
 			result.DayValid,
 			result.Expires,
 			result.Cipher,
-			(string)(result.KeySize),
+			// (string)(result.KeySize),
 		}
 
 		err = w.Write(csvLine)
