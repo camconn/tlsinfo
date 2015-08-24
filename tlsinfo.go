@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	// "crypto/tls"
-	// "net/http"
 	"bufio"
+	"net/http"
 	"os"
 	"sync/atomic"
 	"time"
@@ -43,31 +43,48 @@ func readSites(siteChan chan string) {
 	}
 }
 
+func allowRedirect(req *http.Request, via []*http.Request) error {
+	return nil
+}
+
+// func processInfo(req := http.Response
+
 func requestWorker(siteChan chan string, resultChan chan SiteInfo, counter *int32) {
-	alive := true
-	for alive {
+	client := &http.Client{
+		CheckRedirect: allowRedirect,
+	}
+
+	for alive := true; alive; {
 		select {
 		case site := <-siteChan:
-			fmt.Printf("Fetching site %s\n", site)
+			//fmt.Printf("Fetching site %s\n", site)
+
+			resp, err := client.Get("https://" + site)
+			defer resp.Body.Close()
+
+			if err != nil {
+				// fmt.Printf("", site)
+				fmt.Printf("Looks like %s doesn't support HTTPS (%s)\n", site, err)
+			} else {
+				fmt.Printf("%s is good!\n", site)
+			}
+
 			_ = atomic.AddInt32(counter, 1)
 		default:
-			time.Sleep(time.Millisecond)
+			time.Sleep(time.Millisecond) // ugly hack
 		}
 
 		if atomic.LoadInt32(counter) == 500 {
 			fmt.Println("goroutine done!")
 			return
-		} // else {
-		// time.Sleep(time.Second)
-		// }
-
+		}
 	}
 }
 
 func requestDispatch(siteChan chan string, resultChan chan SiteInfo, counter *int32) {
 	quit := make(chan bool)
 
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 16; i++ {
 		go requestWorker(siteChan, resultChan, counter)
 	}
 
