@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
-	"time"
+	// "time"
 )
 
 var DOMAIN_LIST = "sites.txt"
@@ -56,6 +56,7 @@ func processInfo(site string, resp *http.Response, err error, resultChan chan *S
 	}
 
 	// second part of OR condition is bugfix for sites that redirect https -> http (like nytimes.com)
+
 	if err != nil || resp.TLS == nil {
 		fmt.Printf("Looks like %s doesn't support HTTPS (%s)\n", site, err)
 
@@ -142,6 +143,7 @@ func processInfo(site string, resp *http.Response, err error, resultChan chan *S
 	}
 }
 
+// request worker to do stuff
 func requestWorker(siteChan chan string, resultChan chan *SiteInfo, counter *int32) {
 	client := &http.Client{
 		CheckRedirect: allowRedirect,
@@ -156,8 +158,8 @@ func requestWorker(siteChan chan string, resultChan chan *SiteInfo, counter *int
 
 			processInfo(site, resp, err, resultChan)
 			_ = atomic.AddInt32(counter, 1)
-		default:
-			time.Sleep(time.Millisecond) // ugly hack
+			// default:
+			// time.Sleep(time.Millisecond) // ugly hack
 		}
 
 		if atomic.LoadInt32(counter) == 500 {
@@ -167,6 +169,7 @@ func requestWorker(siteChan chan string, resultChan chan *SiteInfo, counter *int
 	}
 }
 
+// create 16 worker threads for speed
 func requestDispatch(siteChan chan string, resultChan chan *SiteInfo, counter *int32) {
 	quit := make(chan bool)
 
@@ -177,6 +180,7 @@ func requestDispatch(siteChan chan string, resultChan chan *SiteInfo, counter *i
 	quit <- true
 }
 
+// function to write results to CVS file.
 func saveResults(results chan *SiteInfo) {
 
 	csvFile, err := os.Create("results.csv")
