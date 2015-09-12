@@ -4,6 +4,14 @@ A tool to scrape TLS information about top websites
 
 Website list was scraped from [Moz.com's Top 500](https://moz.com/top500).
 
+You can view a blog post which uses this tool [on my blog](http://camconn.cc/tls-on-the-top-500-websites/).
+
+### Running it
+
+Simply do:
+```
+go run tlsinfo.go
+```
 
 ### License
 
