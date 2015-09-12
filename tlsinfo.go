@@ -9,8 +9,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"sync/atomic"
-	// "time"
+	"time"
 )
 
 var DOMAIN_LIST = "sites.txt"
@@ -21,6 +22,8 @@ type SiteInfo struct {
 	DayValid   string // first day key is valid
 	Expires    string // When key expires
 	Cipher     string // cipher suite being used
+	Lifespan   int    // days
+	KeyAge     int    // days
 	// KeySize    int
 	// ValidCA    bool // does key use valid CA?
 
@@ -135,8 +138,14 @@ func processInfo(site string, resp *http.Response, err error, resultChan chan *S
 		}
 
 		// when was the key first valid?
-		r.DayValid = cert.NotBefore.String()
-		r.Expires = cert.NotAfter.String()
+		firstValid := cert.NotBefore
+		expires := cert.NotAfter
+
+		r.DayValid = firstValid.String()
+		r.Expires = expires.String()
+
+		r.Lifespan = (int)(expires.Sub(firstValid).Hours() / 24) // days
+		r.KeyAge = (int)(time.Since(firstValid).Hours() / 24)    // days
 
 		// when does the key expire?
 		resultChan <- r
@@ -193,10 +202,12 @@ func saveResults(results chan *SiteInfo) {
 
 	firstLine := []string{
 		"Domain",
-		"Encryption",
-		"Day Valid",
+		"Encryption Type",
+		"Date Valid",
 		"Expires",
 		"Cipher",
+		"Key Lifetime (Days)",
+		"Key Age (Days)",
 		// "Key Size",
 		// "Valid CA",
 	}
@@ -218,6 +229,8 @@ func saveResults(results chan *SiteInfo) {
 			result.DayValid,
 			result.Expires,
 			result.Cipher,
+			strconv.Itoa(result.Lifespan),
+			strconv.Itoa(result.KeyAge),
 			// (string)(result.KeySize),
 		}
 
